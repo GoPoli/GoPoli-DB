@@ -1,0 +1,25 @@
+# Postgres local para desarrollo GoPoli (alternativa a Neon).
+# Uso: docker compose up -d
+# Docs: backend/DOCKER_DB.md
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gopoli-postgres
+    environment:
+      POSTGRES_DB: gopoli
+      POSTGRES_USER: gopoli
+      POSTGRES_PASSWORD: gopoli
+    ports:
+      - "5432:5432"
+    volumes:
+      - gopoli_pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gopoli -d gopoli"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  gopoli_pgdata:

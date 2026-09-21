@@ -169,11 +169,13 @@ Así ves las mismas tablas (`usuario`, `ubicacion`, `servicio`, …) que usa la 
 2. Recibir las 3 variables `SPRING_DATASOURCE_*` (canal seguro).
 3. Copiar `backend/.env.example` → `backend/.env` y pegar valores.
 4. Arrancar backend (variables de entorno o `.env` según su IDE).
-5. Flutter apuntando al backend de cada uno o a uno compartido:
+5. PWA apuntando al backend de cada uno o a uno compartido (`web/.env.local`):
 
-   ```bash
-   flutter run --dart-define=API_URL=http://IP_DEL_BACKEND:8080
+   ```env
+   NEXT_PUBLIC_API_URL=http://IP_DEL_BACKEND:8080
    ```
+
+   Luego `cd web && npm run dev`.
 
 Todos leen/escriben la **misma** BD en Neon; los usuarios que creéis serán visibles para todos.
 
@@ -185,7 +187,7 @@ Si el API sigue en Railway pero la BD pasa a Neon:
 2. Añade las mismas variables `SPRING_DATASOURCE_URL`, `USERNAME`, `PASSWORD` (URL con **pooler** y `sslmode=require`).
 3. Redespliega el backend.
 
-La app móvil sigue usando `--dart-define=API_URL=...` hacia Railway; solo cambia dónde vive PostgreSQL.
+La PWA sigue usando `NEXT_PUBLIC_API_URL` hacia Railway; solo cambia dónde vive PostgreSQL.
 
 ## 8) Buenas prácticas en equipo
 
@@ -194,8 +196,13 @@ La app móvil sigue usando `--dart-define=API_URL=...` hacia Railway; solo cambi
 - No commitear `.env`, dumps (`gopoli.dump`) ni contraseñas.
 - Rotar la contraseña Neon si se filtra; actualizar variables en Railway y en el `.env` de cada uno.
 
+## Alternativa: Postgres en Docker (solo local)
+
+Si prefieres una BD en tu máquina sin Neon, usa `docker compose up -d` y apunta Spring a `gopoli`/`gopoli` en `localhost:5432`. Detalle completo: **`backend/DOCKER_DB.md`**. Neon no se reemplaza: solo cambias las variables `SPRING_DATASOURCE_*`.
+
 ## Referencias en el repo
 
 - Config Spring: `backend/src/main/resources/application.properties`
 - Seeds de coordenadas: `UbicacionCoordenadasSeeder` + `backend/scripts/seed_ubicaciones_metro_poli.sql`
+- Postgres Docker local: `backend/DOCKER_DB.md`, `docker-compose.yml`
 - Deploy API: `DEPLOY_RAILWAY.md`
