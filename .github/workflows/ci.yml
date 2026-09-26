@@ -40,7 +40,7 @@ jobs:
 
       - name: Wait until healthy
         run: |
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             status=$(docker inspect -f '{{.State.Health.Status}}' gopoli-db-ci)
             if [ "$status" = "healthy" ]; then
               exit 0
