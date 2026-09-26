@@ -169,7 +169,8 @@ La imagen no incluye contraseña por defecto: debe definirse siempre al crear el
 | Workflow | Disparador | Qué hace |
 | --- | --- | --- |
 | `ci.yml` | Push y PR a `main` | Construye la imagen, la arranca endurecida con y sin datos demo y valida tablas, catálogos y cuentas |
-| `packaging.yml` | Push a `main`, tags `v*.*.*`, manual | Construye y publica la imagen en GHCR con SBOM y provenance y, desde `main`, despliega a producción con el workflow `deploy.yml` de [GoPoli/.github](https://github.com/GoPoli/.github/blob/main/docs/CI_CD.md#despliegue-en-el-servidor) |
+| `packaging.yml` | Push a `main`, tags `v*.*.*`, manual | Construye y publica la imagen en GHCR con SBOM y provenance |
+| `deploy.yml` | Publicación exitosa en `main`, manual | Despliega la app completa (DB, API y PWA) con el workflow reutilizable de [GoPoli/.github](https://github.com/GoPoli/.github/blob/main/docs/CI_CD.md#despliegue-en-el-servidor) |
 
 ## Contribución
 
