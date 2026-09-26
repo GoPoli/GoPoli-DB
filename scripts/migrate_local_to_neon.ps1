@@ -4,11 +4,11 @@
 #   2. PowerShell:
 #        $env:PGPASSWORD = "TU_PASSWORD_LOCAL_POSTGRES"
 #        $env:NEON_DATABASE_URL = "postgresql://usuario:password@ep-xxx.region.aws.neon.tech/neondb?sslmode=require"
-#        .\backend\scripts\migrate_local_to_neon.ps1
+#        .\scripts\migrate_local_to_neon.ps1
 #
 # Opcional: solo exportar o solo importar
-#   .\migrate_local_to_neon.ps1 -ExportOnly
-#   .\migrate_local_to_neon.ps1 -ImportOnly
+#   .\scripts\migrate_local_to_neon.ps1 -ExportOnly
+#   .\scripts\migrate_local_to_neon.ps1 -ImportOnly
 
 param(
     [string]$LocalHost = "localhost",
@@ -29,7 +29,7 @@ if (-not (Test-Path "$PgBin\pg_dump.exe")) {
     throw "No se encontro pg_dump. Instala PostgreSQL o ajusta `$PgBin en el script."
 }
 
-$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 if (-not $DumpFile) {
     $DumpFile = Join-Path $RepoRoot "gopoli.dump"
 }
@@ -78,6 +78,6 @@ Write-Host @"
 
 Siguiente:
   - Neon SQL Editor o pgAdmin: SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';
-  - Backend: variables SPRING_DATASOURCE_* (ver DATABASE_NEON.md)
+  - Backend: variables SPRING_DATASOURCE_* (ver docs/DATABASE_NEON.md)
 
 "@
