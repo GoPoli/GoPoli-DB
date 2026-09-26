@@ -1,105 +1,126 @@
--- Esquema alineado con entidades JPA de GoPoli (ddl-auto=update también puede
--- completar columnas al arrancar Spring; este script deja la BD usable al instante).
+-- Esquema de GoPoli: catálogos, usuarios, viajes, mensajes y agenda.
 
-CREATE TABLE IF NOT EXISTS carrera (
-    id_carrera      SERIAL PRIMARY KEY,
-    nombrecarrera   VARCHAR(255)
+-- Las fechas y horas se guardan en hora de Colombia, igual que las escribe la API.
+DO $$
+BEGIN
+    EXECUTE format('ALTER DATABASE %I SET timezone TO %L', current_database(), 'America/Bogota');
+END
+$$;
+
+CREATE TABLE programs (
+    id      SERIAL PRIMARY KEY,
+    name    VARCHAR(150) NOT NULL UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS tipo_usuario (
-    id_tipousuario      INTEGER PRIMARY KEY,
-    nombre_tipousuario  VARCHAR(255)
+CREATE TABLE user_types (
+    id      INTEGER PRIMARY KEY,
+    name    VARCHAR(50) NOT NULL UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS estado_usuario (
-    id_estado       INTEGER PRIMARY KEY,
-    nombre_estado   VARCHAR(255)
+CREATE TABLE user_statuses (
+    id      INTEGER PRIMARY KEY,
+    name    VARCHAR(50) NOT NULL UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS tipo_servicio (
-    id_tiposervicio     INTEGER PRIMARY KEY,
-    nombre_tiposervicio VARCHAR(255)
+CREATE TABLE trip_types (
+    id      INTEGER PRIMARY KEY,
+    name    VARCHAR(50) NOT NULL UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS estado_servicio (
-    id_estadoservicio     INTEGER PRIMARY KEY,
-    nombre_estadoservicio VARCHAR(255)
+CREATE TABLE trip_statuses (
+    id      INTEGER PRIMARY KEY,
+    name    VARCHAR(50) NOT NULL UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS tipo_vehiculo (
-    id_tipovehiculo     INTEGER PRIMARY KEY,
-    nombre_tipovehiculo VARCHAR(255)
+CREATE TABLE vehicle_types (
+    id      INTEGER PRIMARY KEY,
+    name    VARCHAR(50) NOT NULL UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS ubicacion (
-    id_ubicacion        SERIAL PRIMARY KEY,
-    nombre_ubicacion    VARCHAR(255),
-    latitud             DOUBLE PRECISION,
-    longitud            DOUBLE PRECISION
+CREATE TABLE locations (
+    id          SERIAL PRIMARY KEY,
+    name        VARCHAR(150) NOT NULL UNIQUE,
+    latitude    DOUBLE PRECISION CHECK (latitude BETWEEN -90 AND 90),
+    longitude   DOUBLE PRECISION CHECK (longitude BETWEEN -180 AND 180)
 );
 
-CREATE TABLE IF NOT EXISTS usuario (
-    id_usuario      SERIAL PRIMARY KEY,
-    correo          VARCHAR(255),
-    contrasena      VARCHAR(255),
-    nombre          VARCHAR(255),
-    tel             VARCHAR(255),
-    id_carrera      INTEGER,
-    id_estado       INTEGER,
-    id_tipousuario  INTEGER,
-    nota            DOUBLE PRECISION,
-    foto_perfil     TEXT
+CREATE TABLE users (
+    id              SERIAL PRIMARY KEY,
+    email           VARCHAR(255) NOT NULL,
+    password        VARCHAR(255) NOT NULL,
+    name            VARCHAR(120) NOT NULL,
+    phone           VARCHAR(20),
+    program_id      INTEGER REFERENCES programs (id) ON DELETE SET NULL,
+    status_id       INTEGER NOT NULL DEFAULT 2 REFERENCES user_statuses (id),
+    user_type_id    INTEGER NOT NULL DEFAULT 1 REFERENCES user_types (id),
+    rating          DOUBLE PRECISION NOT NULL DEFAULT 0 CHECK (rating BETWEEN 0 AND 5),
+    profile_photo   TEXT,
+    created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS vehiculo (
-    id_vehiculo     SERIAL PRIMARY KEY,
-    id_usuario      INTEGER,
-    marca           VARCHAR(60),
-    modelo          VARCHAR(60),
-    matricula       VARCHAR(20),
-    color           VARCHAR(30),
-    capacidad       INTEGER,
-    id_tipovehiculo INTEGER
+CREATE UNIQUE INDEX ux_users_email ON users (upper(email));
+
+CREATE TABLE vehicles (
+    id              SERIAL PRIMARY KEY,
+    user_id         INTEGER NOT NULL UNIQUE REFERENCES users (id) ON DELETE CASCADE,
+    brand           VARCHAR(60) NOT NULL,
+    model           VARCHAR(60) NOT NULL,
+    plate           VARCHAR(20) NOT NULL UNIQUE,
+    color           VARCHAR(30) NOT NULL,
+    capacity        INTEGER NOT NULL DEFAULT 4 CHECK (capacity BETWEEN 1 AND 8),
+    vehicle_type_id INTEGER REFERENCES vehicle_types (id)
 );
 
-CREATE TABLE IF NOT EXISTS servicio (
-    id_servicio         SERIAL PRIMARY KEY,
-    fecha               DATE,
-    descripcion         VARCHAR(255),
-    id_lugarsalida      INTEGER,
-    id_lugarllegada     INTEGER,
-    hora_salida         TIME,
-    id_creador          INTEGER,
-    id_tiposervicio     INTEGER,
-    id_estadoservicio   INTEGER,
-    capacidad           INTEGER
+CREATE TABLE trips (
+    id                      SERIAL PRIMARY KEY,
+    departure_date          DATE NOT NULL,
+    description             VARCHAR(500),
+    departure_location_id   INTEGER NOT NULL REFERENCES locations (id),
+    arrival_location_id     INTEGER NOT NULL REFERENCES locations (id),
+    departure_time          TIME NOT NULL,
+    creator_id              INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    trip_type_id            INTEGER NOT NULL REFERENCES trip_types (id),
+    status_id               INTEGER NOT NULL REFERENCES trip_statuses (id),
+    capacity                INTEGER NOT NULL CHECK (capacity BETWEEN 2 AND 4),
+    created_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (departure_location_id <> arrival_location_id)
 );
 
-CREATE TABLE IF NOT EXISTS servicio_usuario (
-    id_servicio         INTEGER NOT NULL,
-    id_usuario          INTEGER NOT NULL,
-    rol                 VARCHAR(255),
-    rol_participacion   VARCHAR(255),
-    PRIMARY KEY (id_servicio, id_usuario)
+CREATE INDEX ix_trips_status ON trips (status_id);
+CREATE INDEX ix_trips_creator_status ON trips (creator_id, status_id);
+
+CREATE TABLE trip_members (
+    trip_id             INTEGER NOT NULL REFERENCES trips (id) ON DELETE CASCADE,
+    user_id             INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    group_role          VARCHAR(20) NOT NULL CHECK (group_role IN ('creator', 'member')),
+    participation_role  VARCHAR(20) NOT NULL CHECK (participation_role IN ('passenger', 'driver')),
+    joined_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (trip_id, user_id)
 );
 
--- Rutas habituales (Agenda): plantillas para publicar el servicio del día.
-CREATE TABLE IF NOT EXISTS ruta_habitual (
-    id_ruta             SERIAL PRIMARY KEY,
-    id_usuario          INTEGER NOT NULL,
-    id_lugar_salida     INTEGER NOT NULL,
-    id_lugar_llegada    INTEGER NOT NULL,
-    dias_semana         VARCHAR(32) NOT NULL,
-    hora_salida         TIME NOT NULL,
-    capacidad           INTEGER NOT NULL,
-    id_tipo_servicio    INTEGER,
-    descripcion         VARCHAR(255)
+CREATE INDEX ix_trip_members_user ON trip_members (user_id);
+
+CREATE TABLE recurring_routes (
+    id                      SERIAL PRIMARY KEY,
+    user_id                 INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    departure_location_id   INTEGER NOT NULL REFERENCES locations (id),
+    arrival_location_id     INTEGER NOT NULL REFERENCES locations (id),
+    weekdays                VARCHAR(32) NOT NULL CHECK (weekdays ~ '^[1-7](,[1-7])*$'),
+    departure_time          TIME NOT NULL,
+    capacity                INTEGER NOT NULL CHECK (capacity BETWEEN 2 AND 4),
+    trip_type_id            INTEGER NOT NULL DEFAULT 1 REFERENCES trip_types (id),
+    description             VARCHAR(500),
+    CHECK (departure_location_id <> arrival_location_id)
 );
 
-CREATE TABLE IF NOT EXISTS mensaje (
-    id_mensaje      SERIAL PRIMARY KEY,
-    id_servicio     INTEGER NOT NULL,
-    id_usuario      INTEGER NOT NULL,
-    texto           VARCHAR(1000) NOT NULL,
-    fecha_envio     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+CREATE INDEX ix_recurring_routes_user ON recurring_routes (user_id);
+
+CREATE TABLE messages (
+    id          SERIAL PRIMARY KEY,
+    trip_id     INTEGER NOT NULL REFERENCES trips (id) ON DELETE CASCADE,
+    user_id     INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    content     VARCHAR(1000) NOT NULL CHECK (length(btrim(content)) > 0),
+    sent_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX ix_messages_trip_sent ON messages (trip_id, sent_at);
