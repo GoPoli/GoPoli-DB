@@ -1,4 +1,4 @@
-FROM postgres:16-alpine
+FROM postgres:18-alpine
 
 ENV POSTGRES_DB=gopoli \
     POSTGRES_USER=gopoli \
