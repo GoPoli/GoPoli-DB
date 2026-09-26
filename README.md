@@ -36,7 +36,7 @@ GoPoli-DB/
 │
 ├── .dockerignore
 ├── .env.example
-├── docker-compose.yml                # Base local con volumen persistente
+├── compose.yaml                      # Base local con volumen persistente
 ├── Dockerfile                        # postgres:16-alpine sin privilegios + scripts de init
 └── LICENSE
 ```
@@ -169,7 +169,7 @@ La imagen no incluye contraseña por defecto: debe definirse siempre al crear el
 | Workflow | Disparador | Qué hace |
 | --- | --- | --- |
 | `ci.yml` | Push y PR a `main` | Construye la imagen, la arranca endurecida con y sin datos demo y valida tablas, catálogos y cuentas |
-| `packaging.yml` | Push a `main`, tags `v*.*.*`, manual | Construye y publica la imagen en GHCR con SBOM y provenance |
+| `packaging.yml` | Push a `main`, tags `v*.*.*`, manual | Construye y publica la imagen en GHCR con SBOM y provenance y, desde `main`, despliega a producción con el workflow `deploy.yml` de [GoPoli/.github](https://github.com/GoPoli/.github/blob/main/docs/CI_CD.md#despliegue-en-el-servidor) |
 
 ## Contribución
 

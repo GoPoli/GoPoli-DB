@@ -56,3 +56,10 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: mode=max
           sbom: true
+
+  deploy:
+    name: Deploy to Production
+    needs: build-and-publish
+    if: github.ref == 'refs/heads/main'
+    uses: GoPoli/.github/.github/workflows/deploy.yml@main
+    secrets: inherit
