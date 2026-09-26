@@ -11,9 +11,17 @@ permissions:
 
 jobs:
   validate:
-    name: Build and Validate Image
+    name: Build and Validate Image (demo=${{ matrix.seed-demo }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
+    strategy:
+      matrix:
+        include:
+          - seed-demo: "false"
+            expected-users: 0
+          - seed-demo: "true"
+            expected-users: 3
 
     steps:
       - name: Checkout repository
@@ -23,7 +31,12 @@ jobs:
         run: docker build -t gopoli-db:ci .
 
       - name: Start the database
-        run: docker run -d --name gopoli-db-ci -e POSTGRES_PASSWORD=ci gopoli-db:ci
+        run: |
+          docker run -d --name gopoli-db-ci \
+            --read-only --tmpfs /tmp --tmpfs /var/run/postgresql:mode=1777 \
+            --cap-drop ALL --security-opt no-new-privileges \
+            -e POSTGRES_PASSWORD=ci -e GOPOLI_SEED_DEMO=${{ matrix.seed-demo }} \
+            gopoli-db:ci
 
       - name: Wait until healthy
         run: |
@@ -34,19 +47,20 @@ jobs:
             fi
             sleep 2
           done
-          docker logs gopoli-db-ci
           exit 1
 
-      - name: Validate schema and seed
+      - name: Validate schema, catalogs and demo data
         run: |
           query() { docker exec gopoli-db-ci psql -U gopoli -d gopoli -tAc "$1"; }
           tables=$(query "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")
-          ubicaciones=$(query "SELECT count(*) FROM ubicacion")
-          carreras=$(query "SELECT count(*) FROM carrera")
-          echo "tables=$tables ubicaciones=$ubicaciones carreras=$carreras"
-          test "$tables" -ge 13
-          test "$ubicaciones" -gt 0
-          test "$carreras" -gt 0
+          locations=$(query "SELECT count(*) FROM locations WHERE latitude IS NOT NULL")
+          programs=$(query "SELECT count(*) FROM programs")
+          users=$(query "SELECT count(*) FROM users")
+          echo "tables=$tables locations=$locations programs=$programs users=$users"
+          test "$tables" -eq 13
+          test "$locations" -gt 0
+          test "$programs" -gt 0
+          test "$users" -eq ${{ matrix.expected-users }}
 
       - name: Show logs on failure
         if: failure()
