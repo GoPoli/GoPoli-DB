@@ -1,131 +1,135 @@
 # Base de datos GoPoli en Neon (PostgreSQL compartido)
 
-Neon es PostgreSQL en la nube. Con **un solo proyecto y una rama `main`**, todo el equipo apunta al mismo `gopoli` (usuarios, ubicaciones, servicios, etc.).
+Neon es PostgreSQL en la nube. Con **un solo proyecto y una rama `main`**, todo el equipo apunta a la misma base `gopoli` (usuarios, ubicaciones, viajes, etc.).
 
-## 1) Crear el proyecto en Neon
+## 1. Crear el proyecto en Neon
 
 1. Entra en [https://neon.tech](https://neon.tech) e inicia sesión (GitHub sirve).
 2. **New Project** → nombre sugerido: `gopoli`.
-3. Región: la más cercana al equipo (p. ej. `US East` o la que ofrezca menor latencia desde Colombia).
+3. Región: la más cercana al equipo (por ejemplo `US East`, la de menor latencia desde Colombia).
 4. En el dashboard, abre **Connection details** y copia:
    - **Host** (ej. `ep-xxxx.us-east-2.aws.neon.tech`)
-   - **Database** (suele ser `neondb` o el que elijas)
+   - **Database** (suele ser `neondb` o la que elijas)
    - **User** / **Password**
-   - Activa **SSL** (obligatorio en Neon).
+   - **SSL** activo (obligatorio en Neon).
 
 Neon ofrece dos URLs:
 
 | Tipo | Cuándo usarla |
-|------|----------------|
-| **Pooled** (`…-pooler.…`) | Backend Spring Boot y varios compañeros conectados a la vez (recomendado). |
+| --- | --- |
+| **Pooled** (`…-pooler.…`) | API Spring Boot y varios compañeros conectados a la vez (recomendado). |
 | **Direct** | `pg_dump` / `pg_restore` / pgAdmin para migración o administración. |
 
-## 2) Variables para Spring Boot
+## 2. Variables para la API
 
-El backend ya lee estas variables (ver `backend/src/main/resources/application.properties`):
+[GoPoli-API](https://github.com/GoPoli/GoPoli-API) lee estas variables de entorno:
 
 | Variable | Ejemplo (ajusta con tu host Neon) |
-|----------|-----------------------------------|
+| --- | --- |
 | `SPRING_DATASOURCE_URL` | `jdbc:postgresql://ep-xxxx-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require` |
 | `SPRING_DATASOURCE_USERNAME` | `neondb_owner` |
 | `SPRING_DATASOURCE_PASSWORD` | *(contraseña del dashboard Neon)* |
 
-**Importante:** la URL JDBC debe llevar `?sslmode=require`. Sin eso, la conexión a Neon suele fallar.
+> [!IMPORTANT]
+> La URL JDBC debe llevar `?sslmode=require`. Sin eso, la conexión a Neon falla.
 
 Convierte la URL `postgres://` del panel Neon a JDBC así:
 
-```
+```text
 postgres://USER:PASS@HOST/DB?sslmode=require
         ↓
 jdbc:postgresql://HOST/DB?sslmode=require
 ```
 
-(user y password van en las variables aparte, no en la URL JDBC.)
+Usuario y contraseña van en sus variables, no en la URL JDBC.
 
 ### Plantilla local (no subir a git)
 
-Copia `backend/.env.example` → `backend/.env` y rellena los valores. Ese archivo está en `.gitignore`.
+En GoPoli-API copia `.env.example` → `.env` y rellena los valores. Ese archivo está en `.gitignore`.
 
-Comparte usuario/contraseña/URL con el equipo por un canal seguro (1Password, Bitwarden, Discord privado del proyecto, etc.), **nunca** en el repositorio.
+Comparte usuario, contraseña y URL con el equipo por un canal seguro (1Password, Bitwarden, un canal privado del proyecto), **nunca** en un repositorio.
 
-## 3) Migrar tu BD local (`gopoli`) a Neon (todas las tablas)
+## 3. Migrar una base local a Neon
 
-Tienes **dos formas**: script automático (recomendado) o pgAdmin (clic a clic).
+Hay **dos formas**: script automático (recomendado) o pgAdmin.
 
-### Opción A — Script (exporta todo el esquema + datos)
+### Opción A — Script (exporta todo el esquema y los datos)
 
-1. En Neon → **Dashboard** → **Connect** → pestaña que diga **Direct** (no Pooled).
-2. Copia la connection string, debe verse así:
+1. En Neon → **Dashboard** → **Connect** → pestaña **Direct** (no Pooled).
+2. Copia la connection string; debe verse así:
 
    `postgresql://neondb_owner:XXXXXXXX@ep-nombre-12345678.us-east-2.aws.neon.tech/neondb?sslmode=require`
 
-3. PowerShell en la raíz del repo:
+3. PowerShell en la raíz de este repositorio:
 
 ```powershell
-$env:PGPASSWORD = "123456789"   # tu password local de postgres (pgAdmin)
+$env:PGPASSWORD = "TU_PASSWORD_LOCAL"
 $env:NEON_DATABASE_URL = "postgresql://USUARIO:PASS@ep-XXXX.region.aws.neon.tech/neondb?sslmode=require"
 
-.\backend\scripts\migrate_local_to_neon.ps1 -CleanNeonFirst
+.\scripts\migrate_local_to_neon.ps1 -CleanNeonFirst
 ```
 
-`-CleanNeonFirst` borra en Neon lo que ya exista y vuelve a crear tablas desde tu dump (útil si ya arrancaste el backend contra Neon y Hibernate creó tablas vacías).
+`-CleanNeonFirst` borra en Neon lo que ya exista y vuelve a crear las tablas desde el volcado (útil si la API ya arrancó contra Neon y Hibernate creó tablas vacías).
 
-Solo exportar de nuevo:
+Solo exportar:
 
 ```powershell
-.\backend\scripts\migrate_local_to_neon.ps1 -ExportOnly
+.\scripts\migrate_local_to_neon.ps1 -ExportOnly
 ```
 
-Solo importar un `gopoli.dump` que ya tengas:
+Solo importar un `gopoli.dump` existente:
 
 ```powershell
 $env:NEON_DATABASE_URL = "postgresql://..."
-.\backend\scripts\migrate_local_to_neon.ps1 -ImportOnly -CleanNeonFirst
+.\scripts\migrate_local_to_neon.ps1 -ImportOnly -CleanNeonFirst
 ```
 
-En Windows, si `pg_dump` no está en el PATH, el script usa `C:\Program Files\PostgreSQL\18\bin\`.
+Parámetros útiles del script: `-LocalHost`, `-LocalUser`, `-LocalDb` y `-DumpFile`. Si la base local es el contenedor de este repositorio, usa `-LocalUser gopoli`. En Windows, si `pg_dump` no está en el PATH, el script busca `C:\Program Files\PostgreSQL\18\bin\` y luego la versión 17.
+
+> [!CAUTION]
+> El archivo `gopoli.dump` contiene datos reales de usuarios. Está en `.gitignore`: nunca lo subas a un repositorio y bórralo al terminar la migración.
 
 ### Opción B — pgAdmin (sin terminal)
 
 **Paso 1 — Backup local**
 
-1. pgAdmin → servidor **PostgreSQL 18** → base de datos **`gopoli`** → clic derecho → **Backup…**
-2. Filename: `C:\Users\jorge\GoPoli\gopoli.backup`
-3. Format: **Custom** o **Plain** (Custom = mismo que el script).
-4. Pestaña **Data** → activa datos y esquema (por defecto suele ir todo).
+1. pgAdmin → servidor local → base de datos **`gopoli`** → clic derecho → **Backup…**
+2. Filename: una ruta fuera de cualquier repositorio, por ejemplo `Documentos/gopoli.backup`.
+3. Format: **Custom** (el mismo formato que usa el script).
+4. Pestaña **Data**: esquema y datos (opción por defecto).
 5. **Backup**.
 
 **Paso 2 — Registrar Neon en pgAdmin**
 
 1. **Register** → **Server** → nombre `Neon GoPoli`.
-2. **Connection**: Host y Database de Neon (Direct), User, Password, port `5432`.
+2. **Connection**: host y base de datos de Neon (Direct), usuario, contraseña, puerto `5432`.
 3. **SSL** → SSL mode: **Require** → Save.
 
 **Paso 3 — Restore en Neon**
 
 1. Clic derecho en la base de datos de Neon (ej. `neondb`) → **Restore…**
-2. Filename: el `.backup` que generaste.
-3. Opciones: marca **Clean before restore** si ya había tablas en Neon.
+2. Filename: el `.backup` generado.
+3. Marca **Clean before restore** si ya había tablas en Neon.
 4. **Restore**.
 
-### Comandos manuales (equivalente al script)
+### Comandos manuales (equivalentes al script)
 
 Exportar (local):
 
-```powershell
-$env:PGPASSWORD = "TU_PASSWORD_LOCAL"
-& "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" -h localhost -U postgres -d gopoli -F c --no-owner --no-acl -f gopoli.dump
+```bash
+pg_dump -h localhost -U gopoli -d gopoli -F c --no-owner --no-acl -f gopoli.dump
 ```
 
-Importar (Neon, URL **directa**):
+Importar (Neon, URL **Direct**):
 
-```powershell
-& "C:\Program Files\PostgreSQL\18\bin\pg_restore.exe" --clean --if-exists --verbose --no-owner --no-privileges -d "postgresql://USUARIO:PASS@ep-XXXX.region.aws.neon.tech/neondb?sslmode=require" gopoli.dump
+```bash
+pg_restore --clean --if-exists --verbose --no-owner --no-privileges \
+  -d "postgresql://USUARIO:PASS@ep-XXXX.region.aws.neon.tech/neondb?sslmode=require" gopoli.dump
 ```
 
 ### Verificar que llegaron todas las tablas
 
-En Neon **SQL Editor** o pgAdmin conectado a Neon:
+En el **SQL Editor** de Neon o en pgAdmin:
 
 ```sql
 SELECT table_name
@@ -137,72 +141,62 @@ SELECT COUNT(*) AS usuarios FROM usuario;
 SELECT COUNT(*) AS ubicaciones FROM ubicacion;
 ```
 
-Deberías ver las mismas tablas que en local (`usuario`, `ubicacion`, `servicio`, `carrera`, etc.) y los mismos conteos de filas.
+Deberías ver las mismas 13 tablas que en local (`usuario`, `ubicacion`, `servicio`, `carrera`, etc.) y los mismos conteos.
 
-## 4) Arrancar el backend contra Neon
-
-PowerShell:
+## 4. Arrancar la API contra Neon
 
 ```powershell
-cd backend
 $env:SPRING_DATASOURCE_URL="jdbc:postgresql://TU-HOST-POOLER/neondb?sslmode=require"
 $env:SPRING_DATASOURCE_USERNAME="TU_USUARIO"
 $env:SPRING_DATASOURCE_PASSWORD="TU_CONTRASEÑA"
 .\mvnw.cmd spring-boot:run
 ```
 
-Prueba: `GET http://localhost:8080/ubicaciones`
+Con Docker:
 
-En IntelliJ / VS Code: define las mismas tres variables en la configuración de ejecución de `GoPoliApplication`.
+```bash
+docker run -d -p 8080:8080 --env-file .env ghcr.io/gopoli/gopoli-api:latest
+```
 
-## 5) pgAdmin con Neon (opcional)
+Prueba: `GET http://localhost:8080/ubicaciones`.
+
+En IntelliJ o VS Code define las mismas tres variables en la configuración de ejecución de `GoPoliApplication`.
+
+## 5. pgAdmin con Neon (opcional)
 
 1. Register → Server.
-2. **Connection** → Host = host **directo** Neon, Port `5432`, Database, Username, Password.
+2. **Connection** → host **Direct** de Neon, puerto `5432`, base de datos, usuario y contraseña.
 3. Pestaña **SSL** → SSL mode: `require`.
 
-Así ves las mismas tablas (`usuario`, `ubicacion`, `servicio`, …) que usa la app.
+## 6. Checklist para el equipo
 
-## 6) Compañeros: checklist rápido
-
-1. Clonar el repo.
-2. Recibir las 3 variables `SPRING_DATASOURCE_*` (canal seguro).
-3. Copiar `backend/.env.example` → `backend/.env` y pegar valores.
-4. Arrancar backend (variables de entorno o `.env` según su IDE).
-5. PWA apuntando al backend de cada uno o a uno compartido (`web/.env.local`):
+1. Clonar [GoPoli-API](https://github.com/GoPoli/GoPoli-API).
+2. Recibir las tres variables `SPRING_DATASOURCE_*` por un canal seguro.
+3. Copiar `.env.example` → `.env` en la API y pegar los valores.
+4. Arrancar la API (variables de entorno, `--env-file` o IDE).
+5. Apuntar la PWA a esa API en `.env.local` de [GoPoli-Web](https://github.com/GoPoli/GoPoli-Web):
 
    ```env
-   NEXT_PUBLIC_API_URL=http://IP_DEL_BACKEND:8080
+   NEXT_PUBLIC_API_URL=http://IP_DE_LA_API:8080
    ```
 
-   Luego `cd web && npm run dev`.
+Todos leen y escriben la **misma** base en Neon; los usuarios que se creen son visibles para todos.
 
-Todos leen/escriben la **misma** BD en Neon; los usuarios que creéis serán visibles para todos.
+## 7. API en Railway + base en Neon
 
-## 7) Backend en Railway + BD en Neon
+1. En el servicio de la API en Railway, quita el PostgreSQL de Railway si ya no se usa.
+2. Agrega `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` y `SPRING_DATASOURCE_PASSWORD` (URL con **pooler** y `sslmode=require`).
+3. Redespliega la API.
 
-Si el API sigue en Railway pero la BD pasa a Neon:
+La PWA sigue usando `NEXT_PUBLIC_API_URL` hacia Railway; solo cambia dónde vive PostgreSQL. Guía de Railway en [GoPoli-API](https://github.com/GoPoli/GoPoli-API/blob/main/docs/DEPLOY_RAILWAY.md).
 
-1. En el servicio **backend** de Railway, quita el Postgres de Railway si ya no lo usáis.
-2. Añade las mismas variables `SPRING_DATASOURCE_URL`, `USERNAME`, `PASSWORD` (URL con **pooler** y `sslmode=require`).
-3. Redespliega el backend.
+## 8. Buenas prácticas
 
-La PWA sigue usando `NEXT_PUBLIC_API_URL` hacia Railway; solo cambia dónde vive PostgreSQL.
+- **Una base compartida de desarrollo** evita el clásico “en mi máquina sí hay usuarios”.
+- `SPRING_JPA_HIBERNATE_DDL_AUTO=update` altera el esquema al arrancar; coordinen los cambios de entidades.
+- No versionar `.env`, volcados (`*.dump`, `*.backup`) ni contraseñas.
+- Rotar la contraseña de Neon si se filtra y actualizarla en Railway y en el `.env` de cada integrante.
 
-## 8) Buenas prácticas en equipo
+## Alternativa: PostgreSQL en Docker
 
-- **Una BD compartida de desarrollo** evita “en mi máquina sí hay usuarios”.
-- `spring.jpa.hibernate.ddl-auto=update` altera el esquema al arrancar; coordinad cambios de entidades.
-- No commitear `.env`, dumps (`gopoli.dump`) ni contraseñas.
-- Rotar la contraseña Neon si se filtra; actualizar variables en Railway y en el `.env` de cada uno.
-
-## Alternativa: Postgres en Docker (solo local)
-
-Si prefieres una BD en tu máquina sin Neon, usa `docker compose up -d` y apunta Spring a `gopoli`/`gopoli` en `localhost:5432`. Detalle completo: **`backend/DOCKER_DB.md`**. Neon no se reemplaza: solo cambias las variables `SPRING_DATASOURCE_*`.
-
-## Referencias en el repo
-
-- Config Spring: `backend/src/main/resources/application.properties`
-- Seeds de coordenadas: `UbicacionCoordenadasSeeder` + `backend/scripts/seed_ubicaciones_metro_poli.sql`
-- Postgres Docker local: `backend/DOCKER_DB.md`, `docker-compose.yml`
-- Deploy API: `DEPLOY_RAILWAY.md`
+Para una base en tu máquina sin Neon, sigue [DOCKER_DB.md](DOCKER_DB.md).
